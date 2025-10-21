@@ -1,7 +1,10 @@
-import { ModalSubmitInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { ModalSubmitInteraction, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, TextChannel } from 'discord.js';
 import { apiService } from '../services/apiService';
 import { config } from '../config/config';
 
+/**
+ * Fonction principale appelée à la soumission d'une modale
+ */
 export async function handleModalSubmit(interaction: ModalSubmitInteraction) {
   try {
     if (interaction.customId === 'create_promo_modal') {
@@ -18,6 +21,9 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction) {
   }
 }
 
+/**
+ * Crée une promotion via l'API et affiche un embed dans Discord
+ */
 async function handleCreatePromoModal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -28,14 +34,7 @@ async function handleCreatePromoModal(interaction: ModalSubmitInteraction) {
   const campusId = interaction.fields.getTextInputValue('promo_campus_id');
 
   try {
-    // Créer la promo dans l'API
-    const promo = await apiService.createPromo({
-      nom,
-      dateDebut,
-      dateFin,
-      formationId,
-      campusId,
-    });
+    const promo = await apiService.createPromo({ nom, dateDebut, dateFin, formationId, campusId });
 
     const embed = new EmbedBuilder()
       .setColor(0x00ff00)
@@ -56,6 +55,9 @@ async function handleCreatePromoModal(interaction: ModalSubmitInteraction) {
   }
 }
 
+/**
+ * Gère la soumission d'une inscription utilisateur
+ */
 async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
   const userId = interaction.customId.split('_')[2];
   const promoId = interaction.customId.split('_')[3];
@@ -66,7 +68,7 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
   const prenom = interaction.fields.getTextInputValue('user_prenom');
 
   try {
-    // 1. Créer ou récupérer l'utilisateur
+    // Créer ou récupérer l'utilisateur
     let utilisateur;
     try {
       utilisateur = await apiService.createUtilisateur({
@@ -76,7 +78,6 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
         rolesId: [config.roles.apprenant],
       });
     } catch (error: any) {
-      // Si l'utilisateur existe déjà, on continue
       if (error.message?.includes('exists')) {
         utilisateur = { id: userId };
       } else {
@@ -84,17 +85,27 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
       }
     }
 
-    // 2. Créer la demande d'identification (statut "en attente")
+    // Créer la demande d'identification
     const identification = await apiService.createIdentification({
-      statutIdentificationId: 1, // En attente
+      statutIdentificationId: 1,
       promoId,
       utilisateurId: userId,
     });
 
-    // 3. Créer un thread privé pour la demande
-    const channel = await interaction.client.channels.fetch(config.channels.manageInscriptions);
-    if (!channel?.isTextBased()) return;
+    // Récupérer le salon Discord et caster en TextChannel
+    const channel = await interaction.client.channels.fetch(
+      config.channels.manageInscriptions
+    ) as TextChannel | null;
 
+    if (!channel || !(channel instanceof TextChannel)) {
+      console.error('❌ Le salon d’inscriptions n’est pas un salon texte !');
+      await interaction.editReply({
+        content: '❌ Le salon d’inscriptions est mal configuré.',
+      });
+      return;
+    }
+
+    // Créer l'embed
     const embed = new EmbedBuilder()
       .setColor(0xffa500)
       .setTitle('📝 Nouvelle demande d\'inscription')
@@ -107,6 +118,7 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
       .setFooter({ text: `ID Identification: ${identification.id}` })
       .setTimestamp();
 
+    // Créer les boutons
     const row = new ActionRowBuilder<ButtonBuilder>()
       .addComponents(
         new ButtonBuilder()
@@ -119,6 +131,7 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
           .setStyle(ButtonStyle.Danger)
       );
 
+    // Créer le thread
     const thread = await channel.threads.create({
       name: `Demande ${nom} ${prenom}`,
       autoArchiveDuration: 60,
@@ -127,13 +140,14 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
 
     await thread.send({ embeds: [embed], components: [row] });
 
-    await interaction.editReply({ 
-      content: '✅ Votre demande a été envoyée ! Vous serez notifié de la décision.' 
+    await interaction.editReply({
+      content: '✅ Votre demande a été envoyée ! Vous serez notifié de la décision.',
     });
+
   } catch (error) {
     console.error('Erreur inscription:', error);
-    await interaction.editReply({ 
-      content: '❌ Erreur lors de l\'inscription.' 
+    await interaction.editReply({
+      content: '❌ Erreur lors de l\'inscription.',
     });
   }
 }

@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 export const config = {
     discordToken: process.env.DISCORD_TOKEN!,
     guildId: process.env.DISCORD_GUILD_ID!,
@@ -14,5 +16,7 @@ export const config = {
     },
     categories: {
       promos: process.env.CATEGORY_PROMOS!,
+      template: process.env.CATEGORY_TEMPLATE_ID!,
     },
   };
+  console.log("CONFIG:", config);
