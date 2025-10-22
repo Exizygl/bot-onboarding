@@ -5,8 +5,76 @@ import { handleButtonClick } from './buttonHandler';
 
 export async function setupEventHandlers(client: Client) {
   const guild = await client.guilds.fetch(config.guildId);
-  
-  // Setup button in creation channel
+
+  // 1. CHANNEL IDENTIFICATION
+  const identificationChannel = await guild.channels.fetch(config.channels.identification);
+  if (identificationChannel?.type === ChannelType.GuildText) {
+    const row1 = new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('identify_btn')
+          .setLabel('👤 S\'identifier')
+          .setStyle(ButtonStyle.Primary)
+      );
+    
+    const row2 = new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('update_identity_btn')
+          .setLabel('✏️ Modifier mes informations')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+    await identificationChannel.send({
+      content: '**Identification**\nVeuillez vous identifier avec votre nom et prénom.\nVotre pseudo Discord sera automatiquement mis à jour.',
+      components: [row1, row2],
+    });
+  }
+
+  // 2. CHANNEL GESTION FORMATIONS
+  const formationsChannel = await guild.channels.fetch(config.channels.manageFormations);
+  if (formationsChannel?.type === ChannelType.GuildText) {
+    console.log('poya');
+    const row = new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('create_formation_btn')
+          .setLabel('➕ Créer une Formation')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('list_formations_btn')
+          .setLabel('📋 Voir les Formations')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+    await formationsChannel.send({
+      content: '**Gestion des Formations**\nCréez ou modifiez les formations disponibles.',
+      components: [row],
+    });
+  }
+
+  // 3. CHANNEL GESTION CAMPUS
+  const campusChannel = await guild.channels.fetch(config.channels.manageCampus);
+  if (campusChannel?.type === ChannelType.GuildText) {
+    const row = new ActionRowBuilder<ButtonBuilder>()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('create_campus_btn')
+          .setLabel('➕ Créer un Campus')
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('list_campus_btn')
+          .setLabel('📋 Voir les Campus')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+    await campusChannel.send({
+      content: '**Gestion des Campus**\nCréez ou modifiez les campus disponibles.',
+      components: [row],
+    });
+  }
+
+  // 4. CHANNEL CRÉATION PROMO (avec dropdowns)
   const createPromoChannel = await guild.channels.fetch(config.channels.createPromo);
   if (createPromoChannel?.type === ChannelType.GuildText) {
     const row = new ActionRowBuilder<ButtonBuilder>()
@@ -23,7 +91,7 @@ export async function setupEventHandlers(client: Client) {
     });
   }
 
-  // Setup button in inscription channel
+  // 5. CHANNEL INSCRIPTIONS
   const inscriptionChannel = await guild.channels.fetch(config.channels.inscriptionRequests);
   if (inscriptionChannel?.type === ChannelType.GuildText) {
     const row = new ActionRowBuilder<ButtonBuilder>()
@@ -40,11 +108,11 @@ export async function setupEventHandlers(client: Client) {
     });
   }
 
-  // Handle interactions
+  // HANDLE INTERACTIONS
   client.on('interactionCreate', async (interaction) => {
     if (interaction.isModalSubmit()) {
       await handleModalSubmit(interaction);
-    } else if (interaction.isButton()) {
+    } else if (interaction.isButton() || interaction.isStringSelectMenu()) {
       await handleButtonClick(interaction);
     }
   });

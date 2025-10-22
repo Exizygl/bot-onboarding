@@ -1,22 +1,23 @@
 import 'dotenv/config';
 
 export const config = {
-    discordToken: process.env.DISCORD_TOKEN!,
-    guildId: process.env.DISCORD_GUILD_ID!,
-    apiBaseUrl: process.env.API_BASE_URL!,
-    channels: {
-      createPromo: process.env.CHANNEL_CREATE_PROMO!,
-      inscriptionRequests: process.env.CHANNEL_INSCRIPTION_REQUESTS!,
-      manageInscriptions: process.env.CHANNEL_MANAGE_INSCRIPTIONS!,
-    },
-    roles: {
-      admin: process.env.ROLE_ADMIN!,
-      formateur: process.env.ROLE_FORMATEUR!,
-      apprenant: process.env.ROLE_APPRENANT!,
-    },
-    categories: {
-      promos: process.env.CATEGORY_PROMOS!,
-      template: process.env.CATEGORY_TEMPLATE_ID!,
-    },
-  };
-  console.log("CONFIG:", config);
+  discordToken: process.env.DISCORD_TOKEN!,
+  guildId: process.env.DISCORD_GUILD_ID!,
+  apiBaseUrl: process.env.API_BASE_URL!,
+  channels: {
+    identification: process.env.CHANNEL_IDENTIFICATION!,
+    manageFormations: process.env.CHANNEL_MANAGE_FORMATIONS!,
+    manageCampus: process.env.CHANNEL_MANAGE_CAMPUS!,
+    createPromo: process.env.CHANNEL_CREATE_PROMO!,
+    inscriptionRequests: process.env.CHANNEL_INSCRIPTION_REQUESTS!,
+    manageInscriptions: process.env.CHANNEL_MANAGE_INSCRIPTIONS!,
+  },
+  roles: {
+    admin: process.env.ROLE_ADMIN!,
+    formateur: process.env.ROLE_FORMATEUR!,
+    apprenant: process.env.ROLE_APPRENANT!,
+  },
+  categories: {
+    template: process.env.CATEGORY_TEMPLATE_ID!,
+  },
+};
