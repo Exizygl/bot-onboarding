@@ -136,6 +136,12 @@ export class ApiService {
     return response.json();
   }
 
+  async getIdentification(id: string) {
+    const response = await fetch(`${this.baseUrl}/identifications/${id}`);
+    if (response.status === 404) return null;
+    return response.json();
+}
+
 }
 
 export const apiService = new ApiService();

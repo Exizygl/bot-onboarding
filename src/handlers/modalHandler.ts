@@ -31,10 +31,12 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction) {
     }
   } catch (error) {
     console.error('Erreur modal:', error);
-    await interaction.reply({ 
-      content: '❌ Une erreur est survenue.', 
-      ephemeral: true 
-    }).catch(() => {});
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({ 
+        content: '❌ Une erreur est survenue.', 
+        ephemeral: true 
+      }).catch(() => {});
+    }
   }
 }
 
@@ -48,7 +50,6 @@ async function handleIdentifyModal(interaction: ModalSubmitInteraction) {
   const userId = interaction.user.id;
 
   try {
-    // Créer l'utilisateur dans l'API
     await apiService.createUtilisateur({
       id: userId,
       nom,
@@ -56,7 +57,6 @@ async function handleIdentifyModal(interaction: ModalSubmitInteraction) {
       rolesId: [config.roles.apprenant],
     });
 
-    // Changer le pseudo Discord
     await changeUserNickname(interaction.guild!, userId, prenom, nom);
 
     const embed = new EmbedBuilder()
@@ -86,7 +86,6 @@ async function handleUpdateIdentityModal(interaction: ModalSubmitInteraction) {
   const userId = interaction.user.id;
 
   try {
-    // Vérifier que l'utilisateur existe
     const user = await apiService.getUtilisateur(userId);
     if (!user) {
       await interaction.editReply({ 
@@ -95,10 +94,7 @@ async function handleUpdateIdentityModal(interaction: ModalSubmitInteraction) {
       return;
     }
 
-    // Mettre à jour l'utilisateur
     await apiService.updateUtilisateur(userId, { nom, prenom });
-
-    // Changer le pseudo Discord
     await changeUserNickname(interaction.guild!, userId, prenom, nom);
 
     const embed = new EmbedBuilder()
@@ -123,36 +119,37 @@ async function changeUserNickname(guild: Guild, userId: string, prenom: string, 
   }
 }
 
-// ========== FORMATIONS ==========
+// ========== FORMATIONS (CORRIGÉ) ==========
 
 async function handleCreateFormationModal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const id = interaction.fields.getTextInputValue('formation_id');
   const nom = interaction.fields.getTextInputValue('formation_nom');
   const actif = interaction.fields.getTextInputValue('formation_actif').toLowerCase() === 'true';
 
   try {
-    // Créer la formation dans l'API
-    const formation = await apiService.createFormation({ id, nom, actif });
-
-    // Créer le rôle Discord
     const guild = interaction.guild!;
+    
+    // 1. Créer le rôle Discord AVANT (pour avoir son ID)
     const role = await guild.roles.create({
       name: `Formation ${nom}`,
       color: 0x9b59b6,
       reason: `Création formation ${nom}`,
     });
 
-    // Mettre à jour la formation avec le snowflake du rôle (si besoin)
-    // await apiService.updateFormation(id, { snowflake: role.id });
+    // 2. Créer la formation dans l'API avec l'ID du rôle
+    const formation = await apiService.createFormation({ 
+      id: role.id,  // Utiliser l'ID du rôle Discord
+      nom, 
+      actif 
+    });
 
     const embed = new EmbedBuilder()
       .setColor(0x00ff00)
       .setTitle('✅ Formation créée !')
       .addFields(
         { name: 'Nom', value: nom },
-        { name: 'ID', value: id },
+        { name: 'ID', value: role.id },
         { name: 'Actif', value: actif ? 'Oui' : 'Non' },
         { name: 'Rôle Discord', value: `<@&${role.id}>` }
       )
@@ -160,7 +157,8 @@ async function handleCreateFormationModal(interaction: ModalSubmitInteraction) {
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    await interaction.editReply({ content: '❌ Erreur lors de la création de la formation.' });
+    console.error('Erreur création formation:', error);
+    await interaction.editReply({ content: '❌ Erreur lors de la création.' });
   }
 }
 
@@ -189,31 +187,46 @@ async function handleUpdateFormationModal(interaction: ModalSubmitInteraction) {
   }
 }
 
-// ========== CAMPUS ==========
+// ========== CAMPUS (CORRIGÉ) ==========
 
 async function handleCreateCampusModal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const id = interaction.fields.getTextInputValue('campus_id');
   const nom = interaction.fields.getTextInputValue('campus_nom');
   const actif = interaction.fields.getTextInputValue('campus_actif').toLowerCase() === 'true';
 
   try {
-    await apiService.createCampus({ id, nom, actif });
+    const guild = interaction.guild!;
+    
+    // 1. Créer le rôle Discord AVANT (pour avoir son ID)
+    const role = await guild.roles.create({
+      name: `Campus ${nom}`,
+      color: 0xe67e22,
+      reason: `Création campus ${nom}`,
+    });
+
+    // 2. Créer le campus dans l'API avec l'ID du rôle
+    const campus = await apiService.createCampus({ 
+      id: role.id,  // Utiliser l'ID du rôle Discord
+      nom, 
+      actif 
+    });
 
     const embed = new EmbedBuilder()
       .setColor(0x00ff00)
       .setTitle('✅ Campus créé !')
       .addFields(
         { name: 'Nom', value: nom },
-        { name: 'ID', value: id },
-        { name: 'Actif', value: actif ? 'Oui' : 'Non' }
+        { name: 'ID', value: role.id },
+        { name: 'Actif', value: actif ? 'Oui' : 'Non' },
+        { name: 'Rôle Discord', value: `<@&${role.id}>` }
       )
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    await interaction.editReply({ content: '❌ Erreur lors de la création du campus.' });
+    console.error('Erreur création campus:', error);
+    await interaction.editReply({ content: '❌ Erreur lors de la création.' });
   }
 }
 
@@ -242,7 +255,7 @@ async function handleUpdateCampusModal(interaction: ModalSubmitInteraction) {
   }
 }
 
-// ========== PROMO (STEP 2 avec dates) ==========
+// ========== PROMO ==========
 
 async function handleCreatePromoStep2Modal(interaction: ModalSubmitInteraction) {
   await interaction.deferReply({ ephemeral: true });
@@ -276,13 +289,11 @@ async function handleCreatePromoStep2Modal(interaction: ModalSubmitInteraction) 
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {
-    await interaction.editReply({ 
-      content: '❌ Erreur lors de la création de la promo.' 
-    });
+    await interaction.editReply({ content: '❌ Erreur lors de la création.' });
   }
 }
 
-// ========== INSCRIPTION (inchangé) ==========
+// ========== INSCRIPTION ==========
 
 async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
   const userId = interaction.customId.split('_')[2];
@@ -293,7 +304,13 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
   const nom = interaction.fields.getTextInputValue('user_nom');
   const prenom = interaction.fields.getTextInputValue('user_prenom');
 
+  console.log('=== INSCRIPTION DEBUG ===');
+  console.log('User ID:', userId);
+  console.log('Promo ID:', promoId);
+  console.log('Nom:', nom, 'Prénom:', prenom);
+
   try {
+    // Créer ou récupérer utilisateur
     let utilisateur;
     try {
       utilisateur = await apiService.createUtilisateur({
@@ -302,28 +319,51 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
         prenom,
         rolesId: [config.roles.apprenant],
       });
+      console.log('✅ Utilisateur créé');
     } catch (error: any) {
-      if (error.message?.includes('exists')) {
+      if (error.message?.includes('exists') || error.message?.includes('Conflict')) {
         utilisateur = { id: userId };
+        console.log('ℹ️ Utilisateur existe déjà');
       } else {
+        console.error('❌ Erreur création utilisateur:', error);
         throw error;
       }
     }
 
+    // Créer identification
     const identification = await apiService.createIdentification({
       statutIdentificationId: 1,
       promoId,
       utilisateurId: userId,
     });
+    console.log('✅ Identification créée:', identification.id);
 
+    // Récupérer le channel
     const channel = await interaction.client.channels.fetch(
       config.channels.manageInscriptions
-    ) as TextChannel | null;
+    );
+    console.log('Channel récupéré:', channel?.id, 'Type:', channel?.type);
 
-    if (!channel || !(channel instanceof TextChannel)) {
-      await interaction.editReply({ content: '❌ Salon mal configuré.' });
+    // Vérifier que c'est un TextChannel (type 0 = GuildText)
+    if (!channel || channel.type !== 0) {
+      console.error('❌ Channel introuvable ou mauvais type');
+      await interaction.editReply({ 
+        content: '❌ Salon d\'inscriptions mal configuré. Vérifiez l\'ID dans le .env' 
+      });
       return;
     }
+
+    // Import du type
+    const { ChannelType } = await import('discord.js');
+    
+    // Cast en TextChannel de manière sûre
+    if (channel.type !== ChannelType.GuildText) {
+      console.error('❌ Le channel n\'est pas un salon textuel');
+      await interaction.editReply({ content: '❌ Le channel doit être un salon textuel.' });
+      return;
+    }
+
+    const textChannel = channel as TextChannel;
 
     const embed = new EmbedBuilder()
       .setColor(0xffa500)
@@ -338,27 +378,35 @@ async function handleInscriptionModal(interaction: ModalSubmitInteraction) {
       .setTimestamp();
 
     const row = new ActionRowBuilder<ButtonBuilder>()
-      .addComponents(
-        new ButtonBuilder()
-          .setCustomId(`accept_inscription_${identification.id}_${userId}_${promoId}`)
-          .setLabel('✅ Accepter')
-          .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-          .setCustomId(`reject_inscription_${identification.id}_${userId}`)
-          .setLabel('❌ Refuser')
-          .setStyle(ButtonStyle.Danger)
-      );
+  .addComponents(
+    new ButtonBuilder()
+      .setCustomId(`accept_${identification.id}`)
+      .setLabel('✅ Accepter')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`reject_${identification.id}`)
+      .setLabel('❌ Refuser')
+      .setStyle(ButtonStyle.Danger)
+  );
 
-    const thread = await channel.threads.create({
+    // Créer le thread
+    const thread = await textChannel.threads.create({
       name: `Demande ${nom} ${prenom}`,
       autoArchiveDuration: 60,
+      reason: 'Nouvelle demande d\'inscription',
     });
+    console.log('✅ Thread créé:', thread.id);
 
     await thread.send({ embeds: [embed], components: [row] });
-    await interaction.editReply({ 
-      content: '✅ Demande envoyée !' 
-    });
+    console.log('✅ Message envoyé dans le thread');
+
+    await interaction.editReply({ content: '✅ Demande envoyée !' });
+    console.log('=== FIN INSCRIPTION ===');
+
   } catch (error) {
-    await interaction.editReply({ content: '❌ Erreur.' });
+    console.error('❌ ERREUR INSCRIPTION:', error);
+    await interaction.editReply({ 
+      content: '❌ Erreur lors de l\'inscription. Vérifiez la console.' 
+    });
   }
 }

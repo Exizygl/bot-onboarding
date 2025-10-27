@@ -14,100 +14,108 @@ import {
     /**
      * Démarre une promo : clone la section template et configure les permissions
      */
-    static async startPromo(guild: Guild, promo: any) {
-      try {
-        console.log(`🚀 Démarrage de la promo: ${promo.nom}`);
-  
-        // 1. Créer le rôle Discord pour la promo
-        const promoRole = await guild.roles.create({
-          name: `Promo ${promo.nom}`,
-          color: 0x3498db,
-          reason: `Démarrage promo ${promo.nom}`,
-        });
-  
-        // 2. Récupérer la section template
-        const templateCategory = await guild.channels.fetch(config.categories.template) as CategoryChannel;
-        if (!templateCategory) {
-          throw new Error('Section template introuvable !');
-        }
-  
-        // 3. Créer la nouvelle section
-        const newCategory = await guild.channels.create({
-          name: `🎓 ${promo.nom}`,
-          type: ChannelType.GuildCategory,
-          reason: `Section pour la promo ${promo.nom}`,
-        });
-  
-        // 4. Cloner tous les channels du template
-        const templateChannels = templateCategory.children.cache;
-        
-        for (const [, channel] of templateChannels) {
-          if (channel.type !== ChannelType.GuildText && 
-              channel.type !== ChannelType.GuildVoice) continue;
-  
-          // Cloner le channel
-          const newChannel = await guild.channels.create({
-            name: channel.name,
-            type: channel.type,
-            parent: newCategory.id,
-            permissionOverwrites: [
-              // @everyone ne peut pas voir
-              {
-                id: guild.roles.everyone.id,
-                deny: [PermissionFlagsBits.ViewChannel],
-              },
-              // Le rôle de la promo peut voir
-              {
-                id: promoRole.id,
-                allow: [
-                  PermissionFlagsBits.ViewChannel,
-                  PermissionFlagsBits.SendMessages,
-                  PermissionFlagsBits.ReadMessageHistory,
-                ],
-              },
-              // Les formateurs peuvent tout faire
-              {
-                id: config.roles.formateur,
-                allow: [
-                  PermissionFlagsBits.ViewChannel,
-                  PermissionFlagsBits.SendMessages,
-                  PermissionFlagsBits.ManageMessages,
-                  PermissionFlagsBits.ReadMessageHistory,
-                ],
-              },
-            ],
-          });
-  
-          // Si c'est un channel "annonces", seuls les formateurs peuvent écrire
-          if (channel.name.toLowerCase().includes('annonce')) {
-            await newChannel.permissionOverwrites.edit(promoRole.id, {
-              SendMessages: false,
-            });
-          }
-  
-          console.log(`  ✅ Channel créé: ${newChannel.name}`);
-        }
-  
-        // 5. Mettre à jour la promo dans l'API avec le snowflake du rôle
-        await apiService.updatePromo(promo.id, {
-          snowflake: promoRole.id,
-          statut: {
-            id: 2,
-            libelle: 'actif',
-          },
-        });
-  
-        // 6. Attribuer les rôles aux utilisateurs acceptés
-        await this.assignRolesToUsers(guild, promo, promoRole.id);
-  
-        console.log(`✅ Promo ${promo.nom} démarrée avec succès !`);
-        return { category: newCategory, role: promoRole };
-  
-      } catch (error) {
-        console.error('Erreur démarrage promo:', error);
-        throw error;
-      }
+    // Dans votre fichier promoManager.ts existant, remplacez la méthode startPromo
+
+static async startPromo(guild: Guild, promo: any) {
+  try {
+    console.log(`🚀 Démarrage de la promo: ${promo.nom}`);
+
+    // 1. Créer le rôle Discord pour la promo
+    const promoRole = await guild.roles.create({
+      name: `Promo ${promo.nom}`,
+      color: 0x3498db,
+      reason: `Démarrage promo ${promo.nom}`,
+    });
+
+    // 2. Récupérer la section template
+    const templateCategory = await guild.channels.fetch(config.categories.template) as CategoryChannel;
+    if (!templateCategory) {
+      throw new Error('Section template introuvable !');
     }
+
+    // 3. Créer la nouvelle section
+    const newCategory = await guild.channels.create({
+      name: `🎓 ${promo.nom}`,
+      type: ChannelType.GuildCategory,
+      reason: `Section pour la promo ${promo.nom}`,
+    });
+
+    // 4. Récupérer le rôle formateur depuis le cache
+    const formateurRole = await guild.roles.fetch(config.roles.formateur);
+    if (!formateurRole) {
+      throw new Error('Rôle Formateur introuvable !');
+    }
+
+    // 5. Cloner tous les channels du template
+    const templateChannels = templateCategory.children.cache;
+    
+    for (const [, channel] of templateChannels) {
+      if (channel.type !== ChannelType.GuildText && 
+          channel.type !== ChannelType.GuildVoice) continue;
+
+      // Cloner le channel avec permissions
+      const newChannel = await guild.channels.create({
+        name: channel.name,
+        type: channel.type,
+        parent: newCategory.id,
+        permissionOverwrites: [
+          // @everyone ne peut pas voir
+          {
+            id: guild.roles.everyone.id,
+            deny: [PermissionFlagsBits.ViewChannel],
+          },
+          // Le rôle de la promo peut voir
+          {
+            id: promoRole.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          },
+          // Les formateurs peuvent tout faire
+          {
+            id: formateurRole.id,
+            allow: [
+              PermissionFlagsBits.ViewChannel,
+              PermissionFlagsBits.SendMessages,
+              PermissionFlagsBits.ManageMessages,
+              PermissionFlagsBits.ReadMessageHistory,
+            ],
+          },
+        ],
+      });
+
+      // Si c'est un channel "annonces", seuls les formateurs peuvent écrire
+      if (channel.name.toLowerCase().includes('annonce')) {
+        await newChannel.permissionOverwrites.edit(promoRole.id, {
+          SendMessages: false,
+        });
+      }
+
+      console.log(`  ✅ Channel créé: ${newChannel.name}`);
+    }
+
+    // 6. Mettre à jour la promo dans l'API
+    await apiService.updatePromo(promo.id, {
+      snowflake: promoRole.id,
+      statut: {
+        id: 2,
+        libelle: 'actif',
+      },
+    });
+
+    // 7. Attribuer les rôles aux utilisateurs acceptés
+    await this.assignRolesToUsers(guild, promo, promoRole.id);
+
+    console.log(`✅ Promo ${promo.nom} démarrée avec succès !`);
+    return { category: newCategory, role: promoRole };
+
+  } catch (error) {
+    console.error('Erreur démarrage promo:', error);
+    throw error;
+  }
+}
   
     /**
      * Archive une promo : supprime la section et retire les rôles
