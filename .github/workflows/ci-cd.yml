@@ -1,0 +1,130 @@
+name: Bot CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    name: Build and Push Bot Image
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    name: Deploy Bot to VPS
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USERNAME }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        envs: GITHUB_TOKEN,BOT_REPOSITORY,DISCORD_TOKEN,DISCORD_GUILD_ID,CHANNEL_IDENTIFICATION,CHANNEL_MANAGE_FORMATIONS,CHANNEL_MANAGE_CAMPUS,CHANNEL_CREATE_PROMO,CHANNEL_INSCRIPTION_REQUESTS,CHANNEL_MANAGE_INSCRIPTIONS,ROLE_ADMIN,ROLE_FORMATEUR,ROLE_APPRENANT,CATEGORY_TEMPLATE_ID
+        script: |
+          set -e
+          mkdir -p /opt/bot
+          cd /opt/bot
+          
+          # Convertir le repo en minuscules
+          BOT_REPO_LOWER=$(echo "${BOT_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
+          
+          # Créer le docker-compose.yml pour le Bot seulement
+          cat > docker-compose.yml << COMPOSE_EOF
+          services:
+            bot:
+              image: ghcr.io/${BOT_REPO_LOWER}:latest
+              container_name: discord-bot
+              restart: unless-stopped
+              environment:
+                DISCORD_TOKEN: ${DISCORD_TOKEN}
+                DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
+                API_BASE_URL: http://onboarding-api:3000
+                CHANNEL_IDENTIFICATION: ${CHANNEL_IDENTIFICATION}
+                CHANNEL_MANAGE_FORMATIONS: ${CHANNEL_MANAGE_FORMATIONS}
+                CHANNEL_MANAGE_CAMPUS: ${CHANNEL_MANAGE_CAMPUS}
+                CHANNEL_CREATE_PROMO: ${CHANNEL_CREATE_PROMO}
+                CHANNEL_INSCRIPTION_REQUESTS: ${CHANNEL_INSCRIPTION_REQUESTS}
+                CHANNEL_MANAGE_INSCRIPTIONS: ${CHANNEL_MANAGE_INSCRIPTIONS}
+                ROLE_ADMIN: ${ROLE_ADMIN}
+                ROLE_FORMATEUR: ${ROLE_FORMATEUR}
+                ROLE_APPRENANT: ${ROLE_APPRENANT}
+                CATEGORY_TEMPLATE_ID: ${CATEGORY_TEMPLATE_ID}
+              networks:
+                - api_app-network
+          
+          networks:
+            api_app-network:
+              external: true
+          COMPOSE_EOF
+          
+          # Login Docker
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u Exizygl --password-stdin
+          
+          # Pull et relance
+          docker compose pull
+          docker compose up -d
+          docker image prune -af
+          
+          # Supprime le docker-compose.yml
+          rm -f docker-compose.yml
+          
+          echo "✅ Bot deployed!"
+          docker ps
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        BOT_REPOSITORY: ${{ github.repository }}
+        DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+        DISCORD_GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+        CHANNEL_IDENTIFICATION: ${{ secrets.CHANNEL_IDENTIFICATION }}
+        CHANNEL_MANAGE_FORMATIONS: ${{ secrets.CHANNEL_MANAGE_FORMATIONS }}
+        CHANNEL_MANAGE_CAMPUS: ${{ secrets.CHANNEL_MANAGE_CAMPUS }}
+        CHANNEL_CREATE_PROMO: ${{ secrets.CHANNEL_CREATE_PROMO }}
+        CHANNEL_INSCRIPTION_REQUESTS: ${{ secrets.CHANNEL_INSCRIPTION_REQUESTS }}
+        CHANNEL_MANAGE_INSCRIPTIONS: ${{ secrets.CHANNEL_MANAGE_INSCRIPTIONS }}
+        ROLE_ADMIN: ${{ secrets.ROLE_ADMIN }}
+        ROLE_FORMATEUR: ${{ secrets.ROLE_FORMATEUR }}
+        ROLE_APPRENANT: ${{ secrets.ROLE_APPRENANT }}
+        CATEGORY_TEMPLATE_ID: ${{ secrets.CATEGORY_TEMPLATE_ID }}
