@@ -65,14 +65,13 @@ jobs:
         envs: GITHUB_TOKEN,BOT_REPOSITORY,DISCORD_TOKEN,DISCORD_GUILD_ID,CHANNEL_IDENTIFICATION,CHANNEL_MANAGE_FORMATIONS,CHANNEL_MANAGE_CAMPUS,CHANNEL_CREATE_PROMO,CHANNEL_INSCRIPTION_REQUESTS,CHANNEL_MANAGE_INSCRIPTIONS,ROLE_ADMIN,ROLE_FORMATEUR,ROLE_APPRENANT,CATEGORY_TEMPLATE_ID
         script: |
           set -e
-          mkdir -p /opt/bot
-          cd /opt/bot
+          cd /opt/discord-bot
           
           # Convertir le repo en minuscules
           BOT_REPO_LOWER=$(echo "${BOT_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
           
           # Créer le docker-compose.yml pour le Bot seulement
-          cat > docker-compose.yml << COMPOSE_EOF
+          cat > docker-compose-bot.yml << COMPOSE_EOF
           services:
             bot:
               image: ghcr.io/${BOT_REPO_LOWER}:latest
@@ -93,10 +92,10 @@ jobs:
                 ROLE_APPRENANT: ${ROLE_APPRENANT}
                 CATEGORY_TEMPLATE_ID: ${CATEGORY_TEMPLATE_ID}
               networks:
-                - api_app-network
+                - app-network
           
           networks:
-            api_app-network:
+            app-network:
               external: true
           COMPOSE_EOF
           
@@ -104,12 +103,12 @@ jobs:
           echo "${GITHUB_TOKEN}" | docker login ghcr.io -u Exizygl --password-stdin
           
           # Pull et relance
-          docker compose pull
-          docker compose up -d
+          docker compose -f docker-compose-bot.yml pull
+          docker compose -f docker-compose-bot.yml up -d
           docker image prune -af
           
-          # Supprime le docker-compose.yml
-          rm -f docker-compose.yml
+          # Supprime le docker-compose-bot.yml
+          rm -f docker-compose-bot.yml
           
           echo "✅ Bot deployed!"
           docker ps
