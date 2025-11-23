@@ -92,10 +92,10 @@ jobs:
                 ROLE_APPRENANT: ${ROLE_APPRENANT}
                 CATEGORY_TEMPLATE_ID: ${CATEGORY_TEMPLATE_ID}
               networks:
-                - app-network
+                - discord-bot_app-network
           
           networks:
-            app-network:
+            discord-bot_app-network:
               external: true
           COMPOSE_EOF
           
